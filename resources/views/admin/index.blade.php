@@ -1,411 +1,496 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADMIN PANEL // DEVACTO FACEID</title>
+    <title>Dashboard Admin - Devacto FaceID</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="{{ asset('css/core.css') }}">
+
     <style>
-        /* ============================================
-           CYBERPUNK ADMIN THEME
-        ============================================ */
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
         body {
-            background: #0a0a0a;
-            color: #00ff00;
-            font-family: 'Courier New', Courier, monospace;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        /* Header */
-        .admin-header {
             display: flex;
-            justify-content: space-between;
+            min-height: 100vh;
+            background-color: var(--color-gray-50);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: var(--brand-primary);
+            color: white;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+            top: 0;
+            left: 0;
+        }
+
+        .sidebar-header {
+            height: 64px;
+            display: flex;
             align-items: center;
-            padding: 20px;
-            border-bottom: 2px solid #00ff00;
-            margin-bottom: 30px;
+            padding: 0 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .admin-title {
-            font-size: 28px;
-            text-shadow: 0 0 20px #00ff00;
-            letter-spacing: 3px;
+        .logo {
+            font-weight: 700;
+            font-size: 1.125rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
-        .admin-subtitle {
-            font-size: 12px;
-            color: #008800;
-            margin-top: 5px;
+        .logo-icon {
+            width: 24px;
+            height: 24px;
+            background: var(--brand-accent);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
         }
 
-        .btn-back {
-            background: transparent;
-            border: 2px solid #00ff00;
-            color: #00ff00;
-            padding: 12px 25px;
-            font-family: inherit;
-            font-size: 14px;
-            cursor: pointer;
+        .nav-menu {
+            padding: 1.5rem 1rem;
+            flex: 1;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0.75rem 1rem;
+            color: var(--color-gray-400);
             text-decoration: none;
-            transition: all 0.3s;
-            text-transform: uppercase;
-            letter-spacing: 2px;
+            border-radius: var(--radius-md);
+            margin-bottom: 4px;
+            transition: all 0.2s;
+            font-size: 0.875rem;
         }
 
-        .btn-back:hover {
-            background: #00ff00;
-            color: #000;
-            box-shadow: 0 0 20px #00ff00;
+        .nav-item:hover,
+        .nav-item.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
         }
 
-        /* Stats Cards */
-        .stats-row {
+        .nav-item svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .sidebar-footer {
+            padding: 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.75rem;
+            color: var(--color-gray-500);
+        }
+
+        /* Main Content */
+        .main-wrapper {
+            flex: 1;
+            margin-left: 260px;
+            width: calc(100% - 260px);
+        }
+
+        .topbar {
+            height: 64px;
+            background: white;
+            border-bottom: 1px solid var(--border-light);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 40;
+        }
+
+        .page-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        /* KPI Cards */
+        .kpi-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
         }
 
-        .stat-card {
-            background: rgba(0, 255, 0, 0.05);
-            border: 1px solid #00ff00;
-            padding: 20px;
-            text-align: center;
+        .kpi-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-light);
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
         }
 
-        .stat-number {
-            font-size: 48px;
-            font-weight: bold;
-            text-shadow: 0 0 10px #00ff00;
+        .kpi-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
         }
 
-        .stat-label {
-            font-size: 12px;
-            color: #008800;
-            margin-top: 10px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
+        .kpi-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--brand-primary);
+            line-height: 1;
         }
 
-        /* Table Container */
+        .kpi-trend {
+            font-size: 0.75rem;
+            color: var(--color-success);
+            font-weight: 500;
+        }
+
+        /* Table */
         .table-container {
-            background: rgba(0, 0, 0, 0.5);
-            border: 2px solid #00ff00;
-            box-shadow: 0 0 30px rgba(0, 255, 0, 0.2);
+            background: white;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-light);
             overflow: hidden;
         }
 
         .table-header {
-            background: rgba(0, 255, 0, 0.1);
-            padding: 15px 20px;
-            border-bottom: 1px solid #00ff00;
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-light);
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            justify-content: space-between;
         }
 
-        .table-title {
-            font-size: 16px;
-            letter-spacing: 2px;
-        }
-
-        /* Search Box */
         .search-box {
-            background: #000;
-            border: 1px solid #00ff00;
-            color: #00ff00;
-            padding: 8px 15px;
-            font-family: inherit;
-            width: 250px;
+            position: relative;
+            width: 300px;
         }
 
-        .search-box:focus {
-            outline: none;
-            box-shadow: 0 0 10px #00ff00;
+        .search-box input {
+            width: 100%;
+            padding: 0.5rem 1rem 0.5rem 2.5rem;
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-md);
+            font-size: 0.875rem;
         }
 
-        /* Table */
+        .search-box svg {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 16px;
+            color: var(--text-muted);
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
         }
 
         th {
-            background: rgba(0, 255, 0, 0.1);
-            padding: 15px;
             text-align: left;
-            font-size: 12px;
+            padding: 1rem 1.5rem;
+            background: var(--color-gray-50);
+            font-size: 0.75rem;
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 2px;
-            border-bottom: 1px solid #00ff00;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border-light);
         }
 
         td {
-            padding: 12px 15px;
-            border-bottom: 1px solid rgba(0, 255, 0, 0.2);
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-light);
+            font-size: 0.875rem;
             vertical-align: middle;
         }
 
+        tr:last-child td {
+            border-bottom: none;
+        }
+
         tr:hover {
-            background: rgba(0, 255, 0, 0.05);
+            background: var(--color-gray-50);
         }
 
-        /* Photo Thumbnail */
-        .photo-thumb {
-            width: 60px;
-            height: 60px;
+        .user-cell {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--color-gray-200);
             object-fit: cover;
-            border: 2px solid #00ff00;
-            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
         }
 
-        /* Gender Badge */
         .badge {
-            display: inline-block;
-            padding: 4px 10px;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            display: inline-flex;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
         }
 
-        .badge-male {
-            background: rgba(0, 100, 255, 0.2);
-            border: 1px solid #0088ff;
-            color: #0088ff;
+        .badge-blue {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--brand-accent);
         }
 
-        .badge-female {
-            background: rgba(255, 0, 150, 0.2);
-            border: 1px solid #ff0099;
-            color: #ff0099;
+        .badge-purple {
+            background: rgba(139, 92, 246, 0.1);
+            color: #8b5cf6;
         }
 
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #555;
+        .badge-gray {
+            background: var(--color-gray-100);
+            color: var(--color-gray-600);
         }
 
-        .empty-state h3 {
-            font-size: 24px;
-            margin-bottom: 10px;
-        }
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 70px;
+            }
 
-        /* Time Format */
-        .time-display {
-            font-size: 14px;
-            color: #00ff00;
-        }
+            .nav-item span,
+            .logo span,
+            .sidebar-footer {
+                display: none;
+            }
 
-        .date-display {
-            font-size: 11px;
-            color: #006600;
-        }
+            .nav-item {
+                justify-content: center;
+                padding: 1rem 0;
+            }
 
-        /* Scrollable Table Body */
-        .table-scroll {
-            max-height: calc(100vh - 350px);
-            overflow-y: auto;
-        }
-
-        .table-scroll::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        .table-scroll::-webkit-scrollbar-track {
-            background: #000;
-        }
-
-        .table-scroll::-webkit-scrollbar-thumb {
-            background: #00ff00;
-        }
-
-        /* Footer */
-        .admin-footer {
-            text-align: center;
-            padding: 20px;
-            color: #333;
-            font-size: 12px;
-            margin-top: 30px;
-        }
-
-        /* Delete Button */
-        .btn-delete {
-            background: rgba(255, 0, 0, 0.1);
-            border: 1px solid #ff0000;
-            color: #ff0000;
-            padding: 6px 12px;
-            font-family: inherit;
-            font-size: 11px;
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            transition: all 0.3s;
-        }
-
-        .btn-delete:hover {
-            background: #ff0000;
-            color: #000;
-            box-shadow: 0 0 10px #ff0000;
-        }
-
-        /* Flash Messages */
-        .alert {
-            padding: 15px 20px;
-            margin-bottom: 20px;
-            border: 1px solid;
-            font-size: 14px;
-        }
-
-        .alert-success {
-            background: rgba(0, 255, 0, 0.1);
-            border-color: #00ff00;
-            color: #00ff00;
-        }
-
-        .alert-error {
-            background: rgba(255, 0, 0, 0.1);
-            border-color: #ff0000;
-            color: #ff0000;
+            .main-wrapper {
+                margin-left: 70px;
+                width: calc(100% - 70px);
+            }
         }
     </style>
 </head>
 
 <body>
-    <!-- Header -->
-    <header class="admin-header">
-        <div>
-            <h1 class="admin-title">>> ADMIN_PANEL.EXE</h1>
-            <p class="admin-subtitle">GUEST MANAGEMENT SYSTEM // DEVACTO FACEID</p>
-        </div>
-        <a href="/" class="btn-back">← Back to Scanner</a>
-    </header>
 
-    <!-- Flash Messages -->
-    @if(session('success'))
-        <div class="alert alert-success">✅ {{ session('success') }}</div>
-    @endif
-    @if(session('error'))
-        <div class="alert alert-error">❌ {{ session('error') }}</div>
-    @endif
-
-    <!-- Stats Row -->
-    <div class="stats-row">
-        <div class="stat-card">
-            <div class="stat-number">{{ count($guests) }}</div>
-            <div class="stat-label">Total Guests</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number">{{ $guests->where('created_at', '>=', today())->count() }}</div>
-            <div class="stat-label">Today's Visitors</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number">{{ $guests->where('guest_type', 'Orang Tua')->count() }}</div>
-            <div class="stat-label">Parents</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-number">{{ $guests->where('guest_type', 'Alumni')->count() }}</div>
-            <div class="stat-label">Alumni</div>
-        </div>
-    </div>
-
-    <!-- Table -->
-    <div class="table-container">
-        <div class="table-header">
-            <span class="table-title">>> GUEST_LOG.DB</span>
-            <input type="text" class="search-box" id="searchBox" placeholder="Search name..." onkeyup="filterTable()">
-        </div>
-
-        @if($guests->count() > 0)
-            <div class="table-scroll">
-                <table id="guestTable">
-                    <thead>
-                        <tr>
-                            <th>No</th>
-                            <th>Time</th>
-                            <th>Photo</th>
-                            <th>Name</th>
-                            <th>Gender</th>
-                            <th>Type</th>
-                            <th>Purpose</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($guests as $index => $guest)
-                            <tr>
-                                <td>{{ $index + 1 }}</td>
-                                <td>
-                                    <div class="time-display">{{ $guest->created_at->format('H:i') }}</div>
-                                    <div class="date-display">{{ $guest->created_at->format('d M Y') }}</div>
-                                </td>
-                                <td>
-                                    @if($guest->photo_path)
-                                        <img src="{{ asset('storage/' . $guest->photo_path) }}" alt="Photo" class="photo-thumb"
-                                            onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22><rect fill=%22%23111%22 width=%2260%22 height=%2260%22/><text x=%2230%22 y=%2235%22 text-anchor=%22middle%22 fill=%22%2300ff00%22 font-size=%2212%22>NO IMG</text></svg>'">
-                                    @else
-                                        <div class="photo-thumb"
-                                            style="display:flex; align-items:center; justify-content:center; background:#111;">
-                                            <span style="font-size:10px;">N/A</span>
-                                        </div>
-                                    @endif
-                                </td>
-                                <td style="font-weight:bold;">{{ strtoupper($guest->name) }}</td>
-                                <td>
-                                    <span class="badge {{ $guest->gender == 'male' ? 'badge-male' : 'badge-female' }}">
-                                        {{ $guest->gender == 'male' ? '♂ MALE' : '♀ FEMALE' }}
-                                    </span>
-                                </td>
-                                <td>{{ $guest->guest_type }}</td>
-                                <td>{{ $guest->purpose }}</td>
-                                <td>
-                                    <form action="{{ route('guests.destroy', $guest->id) }}" method="POST"
-                                        style="display:inline;"
-                                        onsubmit="return confirm('Yakin ingin menghapus data ini? Foto juga akan dihapus permanen.');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn-delete">🗑 DELETE</button>
-                                    </form>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <div class="logo-icon">DF</div>
+                <span>Devacto Admin</span>
             </div>
-        @else
-            <div class="empty-state">
-                <h3>[ NO DATA ]</h3>
-                <p>No guests have been registered yet.</p>
-            </div>
-        @endif
-    </div>
+        </div>
+        <nav class="nav-menu">
+            <a href="{{ route('admin.index') }}" class="nav-item {{ request()->routeIs('admin.index') ? 'active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="14" y="14" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
+                </svg>
+                <span>Dashboard</span>
+            </a>
+            <a href="{{ route('admin.monitoring') }}" class="nav-item {{ request()->routeIs('admin.monitoring') ? 'active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <span>Monitoring</span>
+            </a>
+            <a href="{{ route('admin.vip') }}" class="nav-item {{ request()->routeIs('admin.vip') ? 'active' : '' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+                <span>Tamu VIP</span>
+            </a>
+            <a href="{{ route('admin.reports') }}" class="nav-item {{ request()->routeIs('admin.reports') ? 'active' : '' }}">
+                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+                <span>Laporan</span>
+            </a>
+            <a href="/" class="nav-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M15 10l5 5-5 5" />
+                    <path d="M4 4v7a4 4 0 0 0 4 4h12" />
+                </svg>
+                <span>Live Scanner</span>
+            </a>
+            <div style="margin-top: auto;"></div>
+        </nav>
+        <div class="sidebar-footer">
+            &copy; 2024 Devacto FaceID
+        </div>
+    </aside>
 
-    <!-- Footer -->
-    <footer class="admin-footer">
-        DEVACTO FACEID v1.0 // {{ date('Y') }}
-    </footer>
+    <!-- Main -->
+    <div class="main-wrapper">
+        <header class="topbar">
+            <h1 class="page-title">Overview</h1>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <span style="font-size: 0.875rem; color: var(--text-muted);">{{ date('l, d F Y') }}</span>
+                <div
+                    style="width: 32px; height: 32px; background: var(--brand-accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.875rem;">
+                    A</div>
+            </div>
+        </header>
+
+        <main class="content">
+
+            <!-- Alert -->
+            @if(session('success'))
+                <div
+                    style="background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; padding: 1rem; border-radius: var(--radius-md); margin-bottom: 2rem;">
+                    {{ session('success') }}
+                </div>
+            @endif
+
+            <!-- KPIs -->
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <span class="kpi-label">Total Tamu</span>
+                    <span class="kpi-value">{{ count($guests) }}</span>
+                    <span class="kpi-trend">All Time</span>
+                </div>
+                <div class="kpi-card">
+                    <span class="kpi-label">Hari Ini</span>
+                    <span class="kpi-value">{{ $guests->where('created_at', '>=', today())->count() }}</span>
+                    <span class="kpi-trend">Check-ins</span>
+                </div>
+                <div class="kpi-card">
+                    <span class="kpi-label">Tamu Umum</span>
+                    <span class="kpi-value">{{ $guests->where('guest_type', 'Tamu Umum')->count() }}</span>
+                </div>
+                <div class="kpi-card">
+                    <span class="kpi-label">VIP / Dinas</span>
+                    <span
+                        class="kpi-value">{{ $guests->whereIn('guest_type', ['Dinas', 'Tamu Khusus'])->count() }}</span>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-container">
+                <div class="table-header">
+                    <h2 style="font-size: 1rem; font-weight: 600;">Log Kunjungan Terbaru</h2>
+                    <div class="search-box">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8" />
+                            <path d="m21 21-4.35-4.35" />
+                        </svg>
+                        <input type="text" id="searchInput" placeholder="Cari nama atau tujuan..."
+                            onkeyup="filterTable()">
+                    </div>
+                </div>
+
+                @if($guests->count() > 0)
+                    <div style="overflow-x: auto;">
+                        <table id="dataTable">
+                            <thead>
+                                <tr>
+                                    <th>Waktu</th>
+                                    <th>Identitas Tamu</th>
+                                    <th>Gender</th>
+                                    <th>Tipe</th>
+                                    <th>Tujuan</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($guests as $guest)
+                                    <tr>
+                                        <td style="color: var(--text-muted); font-variant-numeric: tabular-nums;">
+                                            {{ $guest->created_at->format('H:i') }}
+                                            <div style="font-size: 0.75rem; color: var(--color-gray-400);">
+                                                {{ $guest->created_at->format('d M') }}</div>
+                                        </td>
+                                        <td>
+                                            <div class="user-cell">
+                                                @if($guest->photo_path)
+                                                    <img src="{{ asset('storage/' . $guest->photo_path) }}" class="avatar">
+                                                @else
+                                                    <div class="avatar"
+                                                        style="display: flex; align-items: center; justify-content: center; color: white;">
+                                                        ?</div>
+                                                @endif
+                                                <span style="font-weight: 500;">{{ $guest->name }}</span>
+                                            </div>
+                                        </td>
+                                        <td>{{ $guest->gender == 'male' ? 'L' : 'P' }}</td>
+                                        <td>
+                                            <span
+                                                class="badge {{ $guest->guest_type == 'Dinas' ? 'badge-purple' : 'badge-gray' }}">
+                                                {{ $guest->guest_type }}
+                                            </span>
+                                        </td>
+                                        <td>{{ $guest->purpose }}</td>
+                                        <td>
+                                            <form action="{{ route('guests.destroy', $guest->id) }}" method="POST"
+                                                onsubmit="return confirm('Hapus data ini?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-danger"
+                                                    style="padding: 4px 8px; font-size: 0.75rem;">
+                                                    Hapus
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div style="padding: 3rem; text-align: center; color: var(--text-muted);">
+                        Belum ada data tamu.
+                    </div>
+                @endif
+            </div>
+
+        </main>
+    </div>
 
     <script>
-        // Simple Table Filter
         function filterTable() {
-            const input = document.getElementById('searchBox');
+            const input = document.getElementById('searchInput');
             const filter = input.value.toUpperCase();
-            const table = document.getElementById('guestTable');
+            const table = document.getElementById('dataTable');
             const tr = table.getElementsByTagName('tr');
 
             for (let i = 1; i < tr.length; i++) {
-                const td = tr[i].getElementsByTagName('td')[3]; // Name column
-                if (td) {
-                    const txtValue = td.textContent || td.innerText;
-                    tr[i].style.display = txtValue.toUpperCase().indexOf(filter) > -1 ? '' : 'none';
+                const tdName = tr[i].getElementsByTagName('td')[1];
+                const tdPurpose = tr[i].getElementsByTagName('td')[4];
+                if (tdName || tdPurpose) {
+                    const txtValueName = tdName.textContent || tdName.innerText;
+                    const txtValuePurpose = tdPurpose.textContent || tdPurpose.innerText;
+                    if (txtValueName.toUpperCase().indexOf(filter) > -1 || txtValuePurpose.toUpperCase().indexOf(filter) > -1) {
+                        tr[i].style.display = "";
+                    } else {
+                        tr[i].style.display = "none";
+                    }
                 }
             }
         }

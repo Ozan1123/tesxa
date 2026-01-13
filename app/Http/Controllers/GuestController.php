@@ -25,6 +25,7 @@ class GuestController extends Controller
             'class_info' => 'nullable|string',
             'gender' => 'required|string',
             'image' => 'required|string', // Base64
+            'face_descriptor' => 'nullable|string',
         ]);
 
         try {
@@ -63,11 +64,19 @@ class GuestController extends Controller
             // 3. Save to Database
             $guest = Guest::create([
                 'name' => $request->name,
+                'type' => 'general',
                 'guest_type' => $request->guest_type,
-                'purpose' => $request->purpose,
+                'purpose' => $request->purpose, // Keep purpose on guest for historical "last purpose" or just generic
                 'class_info' => $request->class_info,
                 'gender' => $request->gender,
                 'photo_path' => $path,
+                'face_descriptor' => $request->face_descriptor, // JSON String
+            ]);
+
+            // Create Visit Record
+            $guest->visits()->create([
+                'purpose' => $request->purpose,
+                'status' => 'active'
             ]);
 
             return response()->json([
@@ -103,5 +112,173 @@ class GuestController extends Controller
         } catch (\Exception $e) {
             return redirect()->route('admin.index')->with('error', 'Gagal menghapus: ' . $e->getMessage());
         }
+    }
+
+    public function apiGuests()
+    {
+        $guests = Guest::select('id', 'name', 'photo_path', 'purpose', 'created_at')
+            ->where('type', 'vip') // Only VIPs
+            ->whereNotNull('photo_path')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($guest) {
+                return [
+                    'id' => $guest->id,
+                    'name' => $guest->name,
+                    'purpose' => $guest->purpose,
+                    'photo_url' => asset('storage/' . $guest->photo_path),
+                    'registered_at' => $guest->created_at->format('H:i'), // Jam Masuk
+                    'date' => $guest->created_at->format('d M Y')
+                ];
+            });
+
+        return response()->json($guests);
+    }
+
+
+
+
+    // --- Admin Pages ---
+    public function vip()
+    {
+        return view('admin.vip');
+    }
+
+    public function storeVip(Request $request)
+    {
+        $request->validate([
+            'name' => 'required',
+            'institution' => 'required',
+            'photo' => 'required|image'
+        ]);
+
+        $path = $request->file('photo')->store('signatures', 'public');
+
+        Guest::create([
+            'name' => $request->name,
+            'type' => 'vip',
+            'guest_type' => 'Dinas', // Default for VIP
+            'institution' => $request->institution,
+            'purpose' => 'Kunjungan Dinas',
+            'gender' => 'male', // Default, admin should set if needed or auto-detect not possible here
+            'photo_path' => $path
+        ]);
+
+        return redirect()->route('admin.vip')->with('success', 'Tamu VIP Berhasil Ditambahkan');
+    }
+
+    // --- Hybrid Workflow Endpoints ---
+
+    /**
+     * API: Get all guest descriptors for frontend matcher
+     */
+    public function getDescriptors()
+    {
+        // Select only necessary fields. limit logic if needed (e.g. active guests only? no, we need all for recognition)
+        // Check performance if 1000s of guests. For now, fetch all with valid descriptors.
+        $guests = Guest::select('id', 'name', 'face_descriptor')
+            ->whereNotNull('face_descriptor')
+            ->get();
+
+        return response()->json($guests);
+    }
+
+    /**
+     * API: Check status of recognized guest
+     */
+    public function checkStatus(Request $request)
+    {
+        $request->validate(['guest_id' => 'required|exists:guests,id']);
+
+        $guest = Guest::find($request->guest_id);
+        $activeVisit = $guest->visits()->where('status', 'active')->first();
+
+        if ($activeVisit) {
+            return response()->json([
+                'status' => 'active',
+                'guest' => $guest,
+                'visit' => $activeVisit
+            ]);
+        }
+
+        return response()->json([
+            'status' => 'none',
+            'guest' => $guest
+        ]);
+    }
+
+    /**
+     * API: Check-in (Create Visit)
+     */
+    public function checkin(Request $request)
+    {
+        $request->validate([
+            'guest_id' => 'required|exists:guests,id',
+            'purpose' => 'nullable|string'
+        ]);
+
+        $guest = Guest::find($request->guest_id);
+
+        // Prevent double
+        if ($guest->visits()->where('status', 'active')->exists()) {
+            return response()->json(['success' => false, 'message' => 'Guest is already active']);
+        }
+
+        $visit = $guest->visits()->create([
+            'purpose' => $request->purpose ?? $guest->purpose, // Use last purpose or input
+            'status' => 'active',
+            'check_in_at' => now()
+        ]);
+
+        return response()->json(['success' => true, 'visit' => $visit]);
+    }
+
+    /**
+     * API: Check-out (Close Visit)
+     */
+    public function checkOut(Request $request)
+    {
+        $request->validate(['guest_id' => 'required|exists:guests,id']);
+
+        $guest = Guest::find($request->guest_id);
+        $visit = $guest->visits()->where('status', 'active')->first();
+
+        if ($visit) {
+            $visit->update([
+                'status' => 'completed',
+                'check_out_at' => now()
+            ]);
+            return response()->json(['success' => true, 'message' => 'Goodbye']);
+        }
+
+        return response()->json(['success' => false, 'message' => 'No active visit']);
+    }
+
+    // --- Admin Actions ---
+
+    public function forceCheckout($id)
+    {
+        $visit = \App\Models\Visit::findOrFail($id);
+        $visit->update([
+            'check_out_at' => now(),
+            'status' => 'forced_exit'
+        ]);
+        return back()->with('success', 'Visit forced checkout successfully');
+    }
+
+    // ... existing ...
+
+    public function monitoring()
+    {
+        $activeVisits = \App\Models\Visit::with('guest')->where('status', 'active')->get();
+        return view('admin.monitoring', compact('activeVisits'));
+    }
+
+
+
+    public function reports()
+    {
+        $visits = \App\Models\Visit::with('guest')->orderBy('created_at', 'desc')->paginate(20);
+        return view('admin.reports', compact('visits'));
     }
 }
