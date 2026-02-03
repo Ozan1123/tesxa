@@ -1,18 +1,18 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-
+use Inertia\Inertia;
 use App\Http\Controllers\GuestController;
 
 Route::get('/', function () {
-    return view('main');
+    return Inertia::render('Scanner/Index');
 });
 
 Route::post('/guests/store', [GuestController::class, 'store'])->name('guest.store');
 Route::get('/admin', [GuestController::class, 'index'])->name('admin.index');
 Route::delete('/guests/{id}', [GuestController::class, 'destroy'])->name('guests.destroy');
 Route::get('/registered-guests', function () {
-    return view('registered_guests');
+    return Inertia::render('Scanner/Verification');
 })->name('registered.guests');
 
 Route::get('/api/guests', [GuestController::class, 'apiGuests'])->name('api.guests');

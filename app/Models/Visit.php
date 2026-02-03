@@ -14,6 +14,11 @@ class Visit extends Model
         'status',
     ];
 
+    protected $casts = [
+        'check_in_at' => 'datetime',
+        'check_out_at' => 'datetime',
+    ];
+
     public function guest()
     {
         return $this->belongsTo(Guest::class);

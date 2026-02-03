@@ -7,12 +7,17 @@ use App\Models\Guest;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
+use Inertia\Inertia;
+
 class GuestController extends Controller
 {
+    // Admin Dashboard (Monitoring) - kept as "index" or "monitoring"
     public function index()
     {
-        $guests = Guest::orderBy('created_at', 'desc')->get();
-        return view('admin.index', compact('guests'));
+        // This was "admin.index", let's make it the main Admin Dashboard
+        return Inertia::render('Admin/Monitoring', [
+            'activeVisits' => \App\Models\Visit::with('guest')->where('status', 'active')->get()
+        ]);
     }
 
     public function store(Request $request)
@@ -79,16 +84,9 @@ class GuestController extends Controller
                 'status' => 'active'
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Guest registered successfully',
-                'data' => $guest
-            ]);
+            return redirect()->back()->with('success', 'Guest registered successfully');
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Server Error: ' . $e->getMessage()
-            ], 500);
+            return redirect()->back()->withErrors(['message' => 'Server Error: ' . $e->getMessage()]);
         }
     }
 
@@ -141,7 +139,14 @@ class GuestController extends Controller
     // --- Admin Pages ---
     public function vip()
     {
-        return view('admin.vip');
+        return Inertia::render('Admin/VIP', [
+            'vips' => Guest::where('type', 'vip')
+                ->with(['visits' => function ($query) {
+                    $query->latest()->limit(1);
+                }])
+                ->orderBy('created_at', 'desc')
+                ->get()
+        ]);
     }
 
     public function storeVip(Request $request)
@@ -149,7 +154,8 @@ class GuestController extends Controller
         $request->validate([
             'name' => 'required',
             'institution' => 'required',
-            'photo' => 'required|image'
+            'photo' => 'required|image',
+            'face_descriptor' => 'required' // Make it required to ensure scanner works
         ]);
 
         $path = $request->file('photo')->store('signatures', 'public');
@@ -160,8 +166,9 @@ class GuestController extends Controller
             'guest_type' => 'Dinas', // Default for VIP
             'institution' => $request->institution,
             'purpose' => 'Kunjungan Dinas',
-            'gender' => 'male', // Default, admin should set if needed or auto-detect not possible here
-            'photo_path' => $path
+            'gender' => 'male',
+            'photo_path' => $path,
+            'face_descriptor' => $request->face_descriptor
         ]);
 
         return redirect()->route('admin.vip')->with('success', 'Tamu VIP Berhasil Ditambahkan');
@@ -177,6 +184,7 @@ class GuestController extends Controller
         // Select only necessary fields. limit logic if needed (e.g. active guests only? no, we need all for recognition)
         // Check performance if 1000s of guests. For now, fetch all with valid descriptors.
         $guests = Guest::select('id', 'name', 'face_descriptor')
+            ->where('type', 'vip')
             ->whereNotNull('face_descriptor')
             ->get();
 
@@ -256,11 +264,23 @@ class GuestController extends Controller
 
     // --- Admin Actions ---
 
-    public function forceCheckout($id)
+    public function forceCheckout(Request $request, $id)
     {
         $visit = \App\Models\Visit::findOrFail($id);
+
+        $checkoutTime = now();
+        if ($request->has('check_out_time') && $request->check_out_time) {
+            try {
+                // Combine today's date with the provided time, interpreting it as Asia/Jakarta
+                $checkoutTime = \Carbon\Carbon::createFromFormat('H:i', $request->check_out_time, 'Asia/Jakarta');
+            } catch (\Exception $e) {
+                // Fallback to now() if parsing fails
+                $checkoutTime = now();
+            }
+        }
+
         $visit->update([
-            'check_out_at' => now(),
+            'check_out_at' => $checkoutTime,
             'status' => 'forced_exit'
         ]);
         return back()->with('success', 'Visit forced checkout successfully');
@@ -270,15 +290,34 @@ class GuestController extends Controller
 
     public function monitoring()
     {
-        $activeVisits = \App\Models\Visit::with('guest')->where('status', 'active')->get();
-        return view('admin.monitoring', compact('activeVisits'));
+        $activeVisits = \App\Models\Visit::with(['guest' => function ($query) {
+            $query->withTrashed();
+        }])
+            ->where('status', 'active')
+            ->orderBy('check_in_at', 'desc')
+            ->get();
+
+        $stats = [
+            'total_today' => \App\Models\Visit::whereDate('check_in_at', now())->count(),
+            'total_guests' => \App\Models\Guest::count(),
+        ];
+
+        return Inertia::render('Admin/Monitoring', [
+            'activeVisits' => $activeVisits,
+            'stats' => $stats
+        ]);
     }
-
-
 
     public function reports()
     {
-        $visits = \App\Models\Visit::with('guest')->orderBy('created_at', 'desc')->paginate(20);
-        return view('admin.reports', compact('visits'));
+        $visits = \App\Models\Visit::with(['guest' => function ($query) {
+            $query->withTrashed();
+        }])
+            ->orderBy('check_in_at', 'desc')
+            ->paginate(20);
+
+        return Inertia::render('Admin/Reports', [
+            'visits' => $visits
+        ]);
     }
 }
