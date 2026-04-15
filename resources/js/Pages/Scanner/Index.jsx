@@ -10,11 +10,17 @@ export default function Index() {
     const [started, setStarted] = useState(false);
     const [detectedFace, setDetectedFace] = useState(null); // { gender, descriptor }
     const [isProcessing, setIsProcessing] = useState(false);
+    const [detectionConfidence, setDetectionConfidence] = useState(0);
+
+    // Multi-frame descriptor averaging for robust registration
+    const descriptorBufferRef = useRef([]);
+    const DESCRIPTOR_BUFFER_SIZE = 5; // Average over 5 frames for stable descriptor
 
     // Modals
-    const [checkInGuest, setCheckInGuest] = useState(null);
-    const [checkOutGuest, setCheckOutGuest] = useState(null);
     const [showSuccess, setShowSuccess] = useState(null);
+
+    // Track known guest (recognized face) — null means unknown/new guest
+    const [knownGuest, setKnownGuest] = useState(null);
 
     // Form
     const { data, setData, post, processing, reset, errors } = useForm({
@@ -47,9 +53,15 @@ export default function Index() {
         faceapi.matchDimensions(canvas, displaySize);
 
         intervalRef.current = setInterval(async () => {
-            if (video.paused || video.ended || isProcessing || checkInGuest || checkOutGuest) return;
+            if (video.paused || video.ended || isProcessing) return;
 
-            const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+            // SSD MobileNetV1 is much more accurate than TinyFaceDetector,
+            // especially for faces with occlusions like glasses, masks, etc.
+            const ssdOptions = new faceapi.SsdMobilenetv1Options({
+                minConfidence: 0.5 // Balance between detection rate and false positives
+            });
+
+            const detections = await faceapi.detectAllFaces(video, ssdOptions)
                 .withFaceLandmarks()
                 .withFaceDescriptors()
                 .withAgeAndGender();
@@ -60,7 +72,36 @@ export default function Index() {
 
             if (detections.length > 0) {
                 const detection = resizedDetections[0];
-                setDetectedFace({ gender: detection.gender, descriptor: detection.descriptor });
+                const confidence = detection.detection.score;
+                setDetectionConfidence(Math.round(confidence * 100));
+
+                // Collect descriptors for averaging (more robust registration)
+                descriptorBufferRef.current.push(Array.from(detection.descriptor));
+                if (descriptorBufferRef.current.length > DESCRIPTOR_BUFFER_SIZE) {
+                    descriptorBufferRef.current.shift(); // Keep only last N frames
+                }
+
+                // Compute averaged descriptor for stability
+                let averagedDescriptor = detection.descriptor;
+                if (descriptorBufferRef.current.length >= DESCRIPTOR_BUFFER_SIZE) {
+                    const avg = new Float32Array(128);
+                    for (const desc of descriptorBufferRef.current) {
+                        for (let i = 0; i < 128; i++) {
+                            avg[i] += desc[i];
+                        }
+                    }
+                    for (let i = 0; i < 128; i++) {
+                        avg[i] /= descriptorBufferRef.current.length;
+                    }
+                    averagedDescriptor = avg;
+                }
+
+                setDetectedFace({
+                    gender: detection.gender,
+                    descriptor: averagedDescriptor,
+                    rawDescriptor: detection.descriptor, // Keep raw for matching
+                    confidence: confidence
+                });
 
                 // Draw
                 const box = detection.detection.box;
@@ -68,7 +109,7 @@ export default function Index() {
                 ctx.lineWidth = 3;
                 ctx.strokeRect(box.x, box.y, box.width, box.height);
 
-                // Identify
+                // Identify using raw descriptor (not averaged) for real-time matching
                 if (faceMatcher) {
                     const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
                     if (bestMatch.label !== 'unknown') {
@@ -77,13 +118,16 @@ export default function Index() {
                 }
             } else {
                 setDetectedFace(null);
+                setDetectionConfidence(0);
+                descriptorBufferRef.current = []; // Reset buffer when face is lost
             }
         }, 1000);
     };
 
     const handleKnownGuest = async (guestId) => {
-        setIsProcessing(true);
+        if (isProcessing || knownGuest) return; // Don't re-trigger if already recognized
         try {
+            // Check guest status
             const res = await fetch('/api/visits/check-status', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
@@ -92,45 +136,21 @@ export default function Index() {
             const response = await res.json();
 
             if (response.status === 'active') {
-                setCheckOutGuest({ ...response.guest, visit: response.visit });
+                // Already checked in today
+                flashSuccess(`Halo, ${response.guest.name}! Anda sudah tercatat hadir.`);
             } else {
-                setCheckInGuest(response.guest);
+                // Pre-fill form with guest info, let them choose purpose
+                setKnownGuest(response.guest);
+                setData(prev => ({
+                    ...prev,
+                    name: response.guest.name,
+                    guest_type: response.guest.guest_type || 'Tamu Umum',
+                }));
+                speak(`Halo ${response.guest.name}, silakan isi tujuan kunjungan.`);
             }
         } catch (e) {
             console.error(e);
-            setIsProcessing(false);
         }
-    };
-
-    const confirmCheckIn = async (purpose) => {
-        if (!processAction()) return;
-        try {
-            await fetch('/api/visits/check-in', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
-                body: JSON.stringify({ guest_id: checkInGuest.id, purpose })
-            });
-            setCheckInGuest(null);
-            flashSuccess(`Selamat Datang, ${checkInGuest.name}`);
-        } catch (e) { console.error(e); setIsProcessing(false); }
-    };
-
-    const confirmCheckOut = async () => {
-        if (!processAction()) return;
-        try {
-            await fetch('/api/visits/check-out', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
-                body: JSON.stringify({ guest_id: checkOutGuest.id })
-            });
-            setCheckOutGuest(null);
-            flashSuccess(`Sampai Jumpa, ${checkOutGuest.name}`);
-        } catch (e) { console.error(e); setIsProcessing(false); }
-    };
-
-    const processAction = () => {
-        /* Optional: Add rate limiting or UI feedback */
-        return true;
     };
 
     const flashSuccess = (msg) => {
@@ -148,31 +168,57 @@ export default function Index() {
         window.speechSynthesis.speak(utterance);
     };
 
-    // Registration Form
-    const submitRegistration = (e) => {
+    // Form Submit — handles both known guest (check-in) and unknown (register)
+    const submitRegistration = async (e) => {
         e.preventDefault();
 
-        // Capture Image
-        if (videoRef.current) {
-            const capCanvas = document.createElement('canvas');
-            capCanvas.width = videoRef.current.videoWidth;
-            capCanvas.height = videoRef.current.videoHeight;
-            capCanvas.getContext('2d').drawImage(videoRef.current, 0, 0);
-            data.image = capCanvas.toDataURL('image/png');
-        }
-
-        data.gender = detectedFace?.gender || 'male';
-        if (detectedFace?.descriptor) {
-            data.face_descriptor = JSON.stringify(Array.from(detectedFace.descriptor));
-        }
-
-        post('/guests/store', {
-            onSuccess: () => {
-                flashSuccess('Registrasi Berhasil!');
+        if (knownGuest) {
+            // KNOWN GUEST: Just check-in with selected purpose
+            setIsProcessing(true);
+            try {
+                await fetch('/api/visits/check-in', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify({
+                        guest_id: knownGuest.id,
+                        purpose: data.purpose
+                    })
+                });
+                flashSuccess(`Selamat Datang, ${knownGuest.name}!`);
+                setKnownGuest(null);
                 reset();
-                loadDescriptors(); // Refresh matcher
+            } catch (err) {
+                console.error(err);
+                setIsProcessing(false);
             }
-        });
+        } else {
+            // UNKNOWN GUEST: Full registration
+            // Capture Image
+            if (videoRef.current) {
+                const capCanvas = document.createElement('canvas');
+                capCanvas.width = videoRef.current.videoWidth;
+                capCanvas.height = videoRef.current.videoHeight;
+                capCanvas.getContext('2d').drawImage(videoRef.current, 0, 0);
+                data.image = capCanvas.toDataURL('image/png');
+            }
+
+            data.gender = detectedFace?.gender || 'male';
+            if (detectedFace?.descriptor) {
+                data.face_descriptor = JSON.stringify(Array.from(detectedFace.descriptor));
+            }
+
+            post('/guests/store', {
+                onSuccess: () => {
+                    flashSuccess('Registrasi Berhasil!');
+                    reset();
+                    setKnownGuest(null);
+                    loadDescriptors(); // Refresh matcher
+                }
+            });
+        }
     };
 
     return (
@@ -316,10 +362,16 @@ export default function Index() {
                             <div className="w-12 h-1 bg-blue-600 rounded-full"></div>
                         </div>
 
-                        <div className={`mb-8 px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-3 border transition-all duration-300 ${detectedFace ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-                            <div className={`w-3 h-3 rounded-full shadow-sm ${detectedFace ? 'bg-blue-600 animate-pulse ring-2 ring-blue-200' : 'bg-slate-300'}`}></div>
-                            {detectedFace ? "Wajah Terdeteksi" : "Menunggu scan wajah..."}
+                        <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-3 border transition-all duration-300 ${knownGuest ? 'bg-green-50 border-green-200 text-green-700 shadow-sm' : detectedFace ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                            <div className={`w-3 h-3 rounded-full shadow-sm ${knownGuest ? 'bg-green-600 animate-pulse ring-2 ring-green-200' : detectedFace ? 'bg-blue-600 animate-pulse ring-2 ring-blue-200' : 'bg-slate-300'}`}></div>
+                            {knownGuest ? `✓ Tamu Terdaftar` : detectedFace ? `Wajah Terdeteksi (${detectionConfidence}%)` : "Menunggu scan wajah..."}
                         </div>
+
+                        {knownGuest && (
+                            <div className="mb-6 px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-800">
+                                <span className="font-bold">{knownGuest.name}</span> — Silakan isi tujuan kunjungan lalu tekan tombol <strong>Check In</strong>.
+                            </div>
+                        )}
 
                         <form onSubmit={submitRegistration} className="space-y-6">
                             <div className="space-y-1.5">
@@ -332,9 +384,10 @@ export default function Index() {
                                     </div>
                                     <input
                                         type="text"
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 text-slate-800 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 focus:bg-white placeholder-slate-400 transition-all font-bold outline-none"
+                                        className={`w-full pl-10 pr-4 py-3 border border-slate-200 text-slate-800 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 placeholder-slate-400 transition-all font-bold outline-none ${knownGuest ? 'bg-green-50 cursor-not-allowed' : 'bg-slate-50 focus:bg-white'}`}
                                         value={data.name}
-                                        onChange={e => setData('name', e.target.value)}
+                                        onChange={e => !knownGuest && setData('name', e.target.value)}
+                                        readOnly={!!knownGuest}
                                         required
                                         placeholder="Nama tamu..."
                                     />
@@ -396,10 +449,10 @@ export default function Index() {
 
                             <button
                                 type="submit"
-                                disabled={processing || !detectedFace}
-                                className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-bold hover:shadow-lg hover:shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-95 mt-6 uppercase tracking-wide border border-blue-500/20"
+                                disabled={processing || isProcessing || !detectedFace}
+                                className={`w-full py-4 text-white rounded-xl font-bold hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-95 mt-6 uppercase tracking-wide border ${knownGuest ? 'bg-gradient-to-r from-green-600 to-green-700 hover:shadow-green-500/30 border-green-500/20' : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:shadow-blue-500/30 border-blue-500/20'}`}
                             >
-                                {processing ? 'Menyimpan...' : 'Simpan Kunjungan'}
+                                {processing || isProcessing ? 'Menyimpan...' : knownGuest ? '✓ Check In' : 'Simpan Kunjungan'}
                             </button>
 
                             {!detectedFace && (
@@ -410,48 +463,7 @@ export default function Index() {
                 </div>
             </div>
 
-            {/* Check-In Modal */}
-            {checkInGuest && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl p-8 w-96 text-center shadow-2xl animate-in zoom-in duration-200">
-                        <div className="text-4xl mb-4">👋</div>
-                        <h2 className="text-2xl font-bold text-slate-900 mb-1">Selamat Datang</h2>
-                        <h3 className="text-lg font-medium text-indigo-600 mb-6">{checkInGuest.name}</h3>
-
-                        <p className="text-sm text-slate-500 mb-4">Konfirmasi tujuan kunjungan Anda:</p>
-                        <input
-                            type="text"
-                            id="modal-purpose"
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg mb-6"
-                            placeholder="Contoh: Bertemu Kepala Sekolah"
-                            defaultValue={checkInGuest.purpose || ''}
-                        />
-
-                        <div className="flex gap-3">
-                            <button onClick={() => { setCheckInGuest(null); setIsProcessing(false); }} className="flex-1 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 font-medium hover:bg-slate-200">Batal</button>
-                            <button onClick={() => confirmCheckIn(document.getElementById('modal-purpose').value)} className="flex-1 px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700">Check In</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Check-Out Modal */}
-            {checkOutGuest && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl p-8 w-96 text-center shadow-2xl animate-in zoom-in duration-200">
-                        <div className="text-4xl mb-4">👋</div>
-                        <h2 className="text-2xl font-bold text-slate-900 mb-1">Konfirmasi Pulang</h2>
-                        <h3 className="text-lg font-medium text-indigo-600 mb-6">{checkOutGuest.name}</h3>
-
-                        <p className="text-sm text-slate-500 mb-6">Apakah Anda ingin menyelesaikan kunjungan ini?</p>
-
-                        <div className="flex gap-3">
-                            <button onClick={() => { setCheckOutGuest(null); setIsProcessing(false); }} className="flex-1 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 font-medium hover:bg-slate-200">Batal</button>
-                            <button onClick={confirmCheckOut} className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700">Ya, Checkout</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Modals removed: Check-in is automatic, checkout is admin-only */}
         </GuestLayout>
     );
 }

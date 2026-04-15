@@ -34,7 +34,11 @@ export default function Verification() {
         intervalRef.current = setInterval(async () => {
             if (video.paused || video.ended || processingRef.current || scannedGuest) return;
 
-            const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+            const ssdOptions = new faceapi.SsdMobilenetv1Options({
+                minConfidence: 0.5
+            });
+
+            const detections = await faceapi.detectAllFaces(video, ssdOptions)
                 .withFaceLandmarks()
                 .withFaceDescriptors();
 

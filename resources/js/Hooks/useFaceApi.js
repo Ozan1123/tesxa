@@ -27,10 +27,12 @@ export const useFaceApi = () => {
 
         const loadModels = async () => {
             setStatus("Loading AI Models...");
-            await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
-            await faceapi.nets.ageGenderNet.loadFromUri('/models');
-            await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
-            await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
+            await Promise.all([
+                faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
+                faceapi.nets.ageGenderNet.loadFromUri('/models'),
+                faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
+                faceapi.nets.faceRecognitionNet.loadFromUri('/models')
+            ]);
             setStatus("Models Loaded");
             setIsModelLoaded(true);
         };
@@ -57,7 +59,9 @@ export const useFaceApi = () => {
                 }).filter(d => d !== null);
 
                 if(labeledDescriptors.length > 0) {
-                    setFaceMatcher(new faceapi.FaceMatcher(labeledDescriptors, 0.45));
+                    // Threshold 0.55 allows slight appearance changes (glasses on/off)
+                    // while still being secure enough for identification
+                    setFaceMatcher(new faceapi.FaceMatcher(labeledDescriptors, 0.55));
                 }
             }
             setStatus("Ready");
@@ -72,7 +76,13 @@ export const useFaceApi = () => {
         if (!videoRef.current) return;
         setStatus("Starting Camera...");
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 720, height: 560 } });
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: 'user'
+                }
+            });
             videoRef.current.srcObject = stream;
         } catch (err) {
             setStatus("Camera Error: " + err.message);

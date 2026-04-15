@@ -90,20 +90,16 @@ class GuestController extends Controller
         }
     }
 
-    /**
-     * Delete a guest record and their photo
-     */
     public function destroy($id)
     {
         try {
             $guest = Guest::findOrFail($id);
 
-            // Delete the physical photo file if it exists
+
             if ($guest->photo_path && Storage::disk('public')->exists($guest->photo_path)) {
                 Storage::disk('public')->delete($guest->photo_path);
             }
 
-            // Delete the database record
             $guest->delete();
 
             return redirect()->route('admin.index')->with('success', 'Data tamu berhasil dihapus!');
@@ -115,7 +111,7 @@ class GuestController extends Controller
     public function apiGuests()
     {
         $guests = Guest::select('id', 'name', 'photo_path', 'purpose', 'created_at')
-            ->where('type', 'vip') // Only VIPs
+            ->where('type', 'vip')
             ->whereNotNull('photo_path')
             ->orderBy('created_at', 'desc')
             ->get()
@@ -181,11 +177,11 @@ class GuestController extends Controller
      */
     public function getDescriptors()
     {
-        // Select only necessary fields. limit logic if needed (e.g. active guests only? no, we need all for recognition)
-        // Check performance if 1000s of guests. For now, fetch all with valid descriptors.
+        // Fetch ALL guests with valid face descriptors for recognition
+        // This includes both VIP and general guests
         $guests = Guest::select('id', 'name', 'face_descriptor')
-            ->where('type', 'vip')
             ->whereNotNull('face_descriptor')
+            ->where('face_descriptor', '!=', '')
             ->get();
 
         return response()->json($guests);

@@ -412,7 +412,7 @@
             statusText.innerText = "Memuat AI Model...";
             try {
                 await Promise.all([
-                    faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
+                    faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
                     faceapi.nets.ageGenderNet.loadFromUri('/models'),
                     faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
                     faceapi.nets.faceRecognitionNet.loadFromUri('/models')
@@ -437,7 +437,7 @@
                     }).filter(d => d !== null);
 
                     if(labeledDescriptors.length > 0) {
-                        faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.5);
+                        faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.55);
                     }
                 }
 
@@ -453,7 +453,13 @@
         // 3. Start Camera
         function startVideo() {
             statusText.innerText = "Mengakses Kamera...";
-            navigator.mediaDevices.getUserMedia({ video: { width: 720, height: 560 } })
+            navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: 'user'
+                }
+            })
                 .then(stream => {
                     video.srcObject = stream;
                     statusText.innerText = "Sistem Siap";
@@ -476,7 +482,9 @@
             setInterval(async () => {
                 if (!isModelLoaded || video.paused || video.ended || isProcessing) return;
 
-                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+                const detections = await faceapi.detectAllFaces(video, new faceapi.SsdMobilenetv1Options({
+                    minConfidence: 0.5
+                }))
                     .withFaceLandmarks()
                     .withFaceDescriptors()
                     .withAgeAndGender();
