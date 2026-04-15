@@ -230,5 +230,5 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 ---
 
 <p align="center">
-  Built with ❤️ by <strong>Devacto Team</strong>
+  Built with ❤️ by <strong>Muhamad Fauzan Pratama</strong>
 </p>
